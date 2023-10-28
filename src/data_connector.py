@@ -3,6 +3,7 @@ import datetime as dt
 import json
 from typing import Dict, Optional, Union
 
+import pandas as pd
 import requests
 
 
@@ -12,6 +13,7 @@ class SocrataTable:
     table_name: str
     download_format: Optional[str] = None
 
+
 class SocrataTableMetadata:
     def __init__(
         self,
@@ -20,6 +22,7 @@ class SocrataTableMetadata:
         self.socrata_table = socrata_table
         self.table_id = self.socrata_table.table_id
         self.metadata = self.get_table_metadata()
+        self.freshness_check = self.initialize_freshness_check()
 
     def get_table_metadata(self) -> Dict:
         api_call = f"http://api.us.socrata.com/api/catalog/v1?ids={self.table_id}"
@@ -28,7 +31,7 @@ class SocrataTableMetadata:
             response_json = response.json()
             metadata = {
                 "_id": self.table_id,
-                "time_of_collection": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "time_of_metadata_check": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
             metadata.update(response_json["results"][0])
             return metadata
@@ -192,9 +195,39 @@ class SocrataTableMetadata:
             return self.standardize_datetime_str_repr(datetime_obj=metadata_updated_at)
         return None
 
+    def _get_as_datetime(self, datetime_obj: str) -> dt.datetime:
+        return dt.datetime.strptime(datetime_obj, "%Y-%m-%dT%H:%M:%SZ")
+
+    @property
+    def latest_data_update_datetime_dt(self) -> dt.datetime:
+        return self._get_as_datetime(datetime_obj=self.latest_data_update_datetime)
+
+    @property
+    def latest_metadata_update_datetime_dt(self) -> dt.datetime:
+        return self._get_as_datetime(datetime_obj=self.latest_metadata_update_datetime)
+
+    @property
+    def time_of_metadata_check(self) -> dt.datetime:
+        return self._get_as_datetime(datetime_obj=self.metadata["time_of_metadata_check"])
+
     @property
     def data_download_url(self) -> str:
         if self.is_geospatial:
-            return f"https://{self.data_domain}/api/geospatial/{self.table_id}?method=export&format={self.download_format}"
+            return (
+                f"https://{self.data_domain}/api/geospatial/{self.table_id}"
+                + f"?method=export&format={self.download_format}"
+            )
         else:
-            return f"https://{self.data_domain}/api/views/{self.table_id}/rows.{self.download_format}?accessType=DOWNLOAD"
+            return (
+                f"https://{self.data_domain}/api/views/{self.table_id}"
+                + f"/rows.{self.download_format}?accessType=DOWNLOAD"
+            )
+
+    def initialize_freshness_check(self) -> pd.DataFrame:
+        return pd.DataFrame({
+            "dataset_id": [self.table_id],
+            "dataset_name": [self.table_name],
+            "source_data_last_modified": [self.latest_data_update_datetime_dt],
+            "local_data_updated": [False],
+            "time_of_metadata_check": [self.time_of_metadata_check],
+        })
