@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import datetime as dt
 import json
+import re
 from typing import Dict, Optional, Union
 
 import pandas as pd
@@ -224,10 +225,12 @@ class SocrataTableMetadata:
             )
 
     def initialize_freshness_check(self) -> pd.DataFrame:
-        return pd.DataFrame({
-            "dataset_id": [self.table_id],
-            "dataset_name": [self.table_name],
-            "source_data_last_modified": [self.latest_data_update_datetime_dt],
-            "local_data_updated": [False],
-            "time_of_metadata_check": [self.time_of_metadata_check],
-        })
+        return pd.DataFrame(
+            {
+                "dataset_id": [self.table_id],
+                "dataset_name": [self.table_name],
+                "source_data_last_modified": [self.latest_data_update_datetime_dt],
+                "dwh_data_updated": [False],
+                "time_of_metadata_check": [self.time_of_metadata_check],
+            }
+        )
