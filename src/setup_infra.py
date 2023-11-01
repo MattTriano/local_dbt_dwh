@@ -36,6 +36,7 @@ def main() -> None:
     db_dir.mkdir(exist_ok=True)
     data_dir = proj_root_dir.joinpath("data")
     data_dir.mkdir(exist_ok=True)
+    data_dir.joinpath("archive").mkdir(exist_ok=True)
     dwh_db_path = db_dir.joinpath("dwh.duckdb")
     metadata_db_path = db_dir.joinpath("dwh_metadata.duckdb")
     setup_metadata_db(metadata_db_path)

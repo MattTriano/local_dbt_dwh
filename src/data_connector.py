@@ -4,10 +4,13 @@ import json
 from pathlib import Path
 import re
 from typing import Dict, Optional, Union
+from urllib.request import urlretrieve
 
 import pandas as pd
 import requests
 
+from db_utils import execute_ddl_stmt, get_latest_dwh_dataset_freshness
+from file_utils import archive_data_file
 from setup_infra import get_project_root_dir
 
 
@@ -257,10 +260,13 @@ class SocrataTableMetadata:
         dwh_freshness = results_df["source_data_last_modified"].max()
 
         if pd.isnull(dwh_freshness) or (source_freshness > dwh_freshness):
-            file_name = f"{dataset_metadata.table_name}.{dataset_metadata.download_format}"
-            urlretrieve(
-                url=self.data_download_url, filename=project_root_dir.joinpath("data", file_name)
+            file_name = f"{self.table_name}.{self.download_format}"
+            file_path = project_root_dir.joinpath("data", file_name)
+            archive_data_file(
+                file_path=file_path,
+                data_update_timestamp=results_df["source_data_last_modified"].max(),
             )
+            urlretrieve(url=self.data_download_url, filename=file_path)
             self.freshness_check["dwh_data_updated"] = True
             freshness_df = self.freshness_check.copy()
             execute_ddl_stmt(
