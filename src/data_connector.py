@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 import datetime as dt
 import json
+from pathlib import Path
 import re
 from typing import Dict, Optional, Union
 
 import pandas as pd
 import requests
+
+from setup_infra import get_project_root_dir
 
 
 @dataclass
@@ -38,7 +41,8 @@ class SocrataTableMetadata:
             return metadata
         else:
             raise Exception(
-                f"Request for metadata for table {self.table_id} failed with status code {response.status_code}"
+                f"Request for metadata for table {self.table_id} failed with status code "
+                + f"{response.status_code}"
             )
 
     def get_table_metadata_attr(self, attr_dict: dict, attr_name: str) -> str:
@@ -155,6 +159,17 @@ class SocrataTableMetadata:
         }
         return valid_download_formats
 
+    def assert_download_format_is_supported(self, download_format: str) -> None:
+        valid_download_formats = self.get_valid_download_formats()
+        all_pairs = {}
+        [all_pairs.update(kv_pairs) for kv_pairs in valid_download_formats.values()]
+        if (download_format not in all_pairs.keys()) and (
+            download_format not in all_pairs.values()
+        ):
+            raise Exception(
+                f"Download format '{download_format}' isn't supported. Pick from {all_pairs}"
+            )
+
     @property
     def download_format(self) -> str:
         if self.socrata_table.download_format is None:
@@ -234,3 +249,29 @@ class SocrataTableMetadata:
                 "time_of_metadata_check": [self.time_of_metadata_check],
             }
         )
+
+    def refresh_data(self, project_root_dir: Path = get_project_root_dir()) -> None:
+        db_path = project_root_dir.joinpath("db", "dwh_metadata.duckdb")
+        source_freshness = self.freshness_check["source_data_last_modified"].max()
+        results_df = get_latest_dwh_dataset_freshness(dataset_id=self.table_id, db_path=db_path)
+        dwh_freshness = results_df["source_data_last_modified"].max()
+
+        if pd.isnull(dwh_freshness) or (source_freshness > dwh_freshness):
+            file_name = f"{dataset_metadata.table_name}.{dataset_metadata.download_format}"
+            urlretrieve(
+                url=self.data_download_url, filename=project_root_dir.joinpath("data", file_name)
+            )
+            self.freshness_check["dwh_data_updated"] = True
+            freshness_df = self.freshness_check.copy()
+            execute_ddl_stmt(
+                stmt=f"""
+                INSERT INTO metadata.freshness_checks ({", ".join(freshness_df.columns)})
+                SELECT * FROM freshness_df
+                """,
+                db_path=db_path,
+            )
+        else:
+            print(
+                f"The DWH's copy of this table ({self.table_name}) is as fresh as the source."
+                + " Not downloading."
+            )

@@ -12,27 +12,22 @@ def get_project_root_dir() -> Path:
         raise
 
 
-def get_db_dir() -> Path:
-    try:
-        return Path(__file__).joinpath("..", "..", "db").resolve()
-    except Exception as err:
-        raise
-
-
 def setup_metadata_db(metadata_db_path: Path) -> None:
-    execute_ddl_stmt(stmt="CREATE SCHEMA IF NOT EXISTS metadata", db_path=metadata_db_path)
-    execute_ddl_stmt(stmt="CREATE SEQUENCE serial START 1", db_path=metadata_db_path)
-    query = """
-    CREATE TABLE metadata.freshness_checks (
-        id INTEGER PRIMARY KEY DEFAULT NEXTVAL('serial'),
-        dataset_id TEXT NOT NULL,
-        dataset_name TEXT NOT NULL,
-        source_data_last_modified TIMESTAMP WITH TIME ZONE NOT NULL,
-        dwh_data_updated BOOLEAN DEFAULT FALSE,
-        time_of_metadata_check TIMESTAMP WITH TIME ZONE NOT NULL
-    );
-    """
-    execute_ddl_stmt(stmt=query, db_path=metadata_db_path)
+    execute_ddl_stmt(
+        stmt="""
+        CREATE SCHEMA IF NOT EXISTS metadata;
+        CREATE SEQUENCE metadata.freshness_serial;
+        CREATE TABLE metadata.freshness_checks (
+            id INTEGER PRIMARY KEY DEFAULT NEXTVAL('metadata.freshness_serial'),
+            dataset_id TEXT NOT NULL,
+            dataset_name TEXT NOT NULL,
+            source_data_last_modified TIMESTAMP NOT NULL,
+            dwh_data_updated BOOLEAN DEFAULT FALSE,
+            time_of_metadata_check TIMESTAMP NOT NULL
+        );
+        """,
+        db_path=metadata_db_path,
+    )
 
 
 def main() -> None:
