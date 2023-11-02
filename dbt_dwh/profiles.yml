@@ -1,0 +1,16 @@
+dbt_dwh:
+  outputs:
+    dev:
+      type: duckdb
+      path: ../db/dwh_dev.duckdb
+      threads: 1
+
+    prod:
+      type: duckdb
+      path: ../db/dwh_prod.duckdb
+      threads: 4
+
+  target: dev
+
+config:
+  send_anonymous_usage_stats: False
