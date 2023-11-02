@@ -35,6 +35,8 @@ models:
   dbt_dwh:
     data_raw:
       +materialized: table
+      +schema: data_raw
     clean:
       +materialized: table
+      +schema: clean
 
